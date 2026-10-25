@@ -1,199 +1,147 @@
-// solution_ex10.js
-
-/**
- * SO SÁNH: MONOLITHIC SWITCH-CASE (CŨ) VS MODULAR FUNCTION ARCHITECTURE (MỚI)
- */
-
-// ============================================================================
-// 1. DỮ LIỆU CẤU HÌNH VÀ MẢNG KHỞI TẠO
-// ============================================================================
-const PLAN_CONFIG = {
-  PERSONAL: { name: "PERSONAL", deviceLimit: 1, price: 59000 },
-  FAMILY: { name: "FAMILY", deviceLimit: 4, price: 149000 }
+const TICKET_ALLOWANCE = {
+    ECONOMY: 20,
+    BUSINESS: 30
 };
 
-let subscriptions = [
-  { id: "SUB_001", customerName: "Nguyen Van A", plan: "PERSONAL", deviceLimit: 1, price: 59000, status: "ACTIVE" },
-  { id: "SUB_002", customerName: "Tran Thi B", plan: "FAMILY", deviceLimit: 4, price: 149000, status: "ACTIVE" },
-  { id: "SUB_003", customerName: "Le Van C", plan: "PERSONAL", deviceLimit: 1, price: 59000, status: "ACTIVE" }
+const FREQUENT_FLYER_BONUS = {
+    TITAN: 10,
+    GOLD: 10,
+    PLATINUM: 10
+};
+
+const SPECIAL_FEES = {
+    BULKY: 200000,
+    PET: 500000
+};
+
+const RATE_TIER_1 = 60000;
+const RATE_TIER_2 = 80000;
+
+function formatVND(amount) {
+    return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(amount);
+}
+
+function calculateBaggageSurcharge(ticket, baggageList) {
+    const baseAllowance = TICKET_ALLOWANCE[ticket.ticketClass] || 0;
+    const membershipBonus = FREQUENT_FLYER_BONUS[ticket.memberTier] || 0;
+    const totalAllowance = baseAllowance + membershipBonus;
+
+    let totalWeight = 0;
+    let bulkyCount = 0;
+    let petCount = 0;
+
+    for (const item of baggageList) {
+        totalWeight += item.weight;
+        if (item.type === "BULKY") {
+            bulkyCount++;
+        } else if (item.type === "PET") {
+            petCount++;
+        }
+    }
+
+    const excessWeight = Math.max(0, totalWeight - totalAllowance);
+    let weightFee = 0;
+
+    if (excessWeight > 0) {
+        if (excessWeight <= 5) {
+            weightFee = excessWeight * RATE_TIER_1;
+        } else {
+            weightFee = (5 * RATE_TIER_1) + ((excessWeight - 5) * RATE_TIER_2);
+        }
+    }
+
+    const bulkyFee = bulkyCount * SPECIAL_FEES.BULKY;
+    const petFee = petCount * SPECIAL_FEES.PET;
+    const totalSurcharge = weightFee + bulkyFee + petFee;
+
+    return {
+        baseAllowance,
+        membershipBonus,
+        totalAllowance,
+        totalWeight,
+        excessWeight,
+        weightFee,
+        bulkyCount,
+        bulkyFee,
+        petCount,
+        petFee,
+        totalSurcharge
+    };
+}
+
+function printBaggageReceipt(ticket, baggageList, billing) {
+    const width = 64;
+    const divider = "=".repeat(width);
+    const line = "-".repeat(width);
+
+    console.log(divider);
+    console.log("            BIÊN LAI THU CƯỚC HÀNH LÝ SÂN BAY                   ");
+    console.log("               BAGGAGE SURCHARGE RECEIPT                        ");
+    console.log(divider);
+    console.log(` Hành khách (Passenger) : ${ticket.passengerName}`);
+    console.log(` Mã đặt chỗ (PNR)       : ${ticket.pnr.padEnd(10)} Chuyến bay: ${ticket.flightNumber}`);
+    console.log(` Hạng vé (Class)        : ${ticket.ticketClass.padEnd(10)} Hội viên  : ${ticket.memberTier || "STANDARD"}`);
+    console.log(line);
+    console.log(" CHI TIẾT KIỆN HÀNG KÝ GỬI:");
+    console.log(` ${"STT".padEnd(5)}${"Mã kiện".padEnd(14)}${"Loại kiện".padEnd(20)}${"Khối lượng".padStart(12)}`);
+
+    baggageList.forEach((item, index) => {
+        const idx = (index + 1).toString().padEnd(5);
+        const code = item.tagCode.padEnd(14);
+        const type = item.type.padEnd(20);
+        const weight = `${item.weight} kg`.padStart(12);
+        console.log(` ${idx}${code}${type}${weight}`);
+    });
+
+    console.log(line);
+    console.log(` Tổng khối lượng thực tế : ${`${billing.totalWeight} kg`.padStart(35)}`);
+    console.log(` Hạn mức miễn cước gốc   : ${`${billing.baseAllowance} kg`.padStart(35)}`);
+    console.log(` Miễn cước ưu đãi hội viên: ${`${billing.membershipBonus} kg`.padStart(34)}`);
+    console.log(` Khối lượng vượt hạn mức : ${`${billing.excessWeight} kg`.padStart(35)}`);
+    console.log(line);
+    console.log(" TỔNG HỢP CÁC KHOẢN PHỤ PHÍ:");
+    console.log(` - Cước quá cân          : ${formatVND(billing.weightFee).padStart(35)}`);
+    console.log(` - Phí cồng kềnh (${billing.bulkyCount} kiện) : ${formatVND(billing.bulkyFee).padStart(35)}`);
+    console.log(` - Phí thú cưng  (${billing.petCount} lồng) : ${formatVND(billing.petFee).padStart(35)}`);
+    console.log(divider);
+    console.log(` TỔNG TIỀN PHẢI THANH TOÁN: ${formatVND(billing.totalSurcharge).padStart(33)}`);
+    console.log(divider);
+    console.log(" Quý khách vui lòng giữ biên lai để nhận hành lý tại điểm đến.");
+    console.log(divider + "\n");
+}
+
+function processBaggageCheckIn(ticket, baggageList) {
+    const billing = calculateBaggageSurcharge(ticket, baggageList);
+    printBaggageReceipt(ticket, baggageList, billing);
+    return billing;
+}
+
+const sampleTicket1 = {
+    pnr: "VN501",
+    passengerName: "VU HOANG DUONG",
+    flightNumber: "VN216",
+    ticketClass: "ECONOMY",
+    memberTier: "TITAN"
+};
+
+const sampleBaggageList1 = [
+    { tagCode: "TAG-001", weight: 22, type: "STANDARD" },
+    { tagCode: "TAG-002", weight: 15, type: "BULKY" },
+    { tagCode: "TAG-003", weight: 8, type: "PET" }
 ];
 
-// ============================================================================
-// 2. TẦNG DỊCH VỤ DỮ LIỆU (SERVICE LAYER - Pure Logic, Không phụ thuộc UI/CLI)
-// ============================================================================
-const SubscriptionService = {
-  findSubscriptionById(store, id) {
-    return store.find(sub => sub.id === id);
-  },
-
-  createSubscription(store, customerName, planKey) {
-    if (!customerName || customerName.trim() === "") {
-      throw new Error("Tên khách hàng không được để trống.");
-    }
-
-    const plan = PLAN_CONFIG[planKey];
-    if (!plan) {
-      throw new Error("Gói cước không hợp lệ.");
-    }
-
-    const nextId = `SUB_${String(store.length + 1).padStart(3, "0")}`;
-    const newSub = {
-      id: nextId,
-      customerName: customerName.trim(),
-      plan: plan.name,
-      deviceLimit: plan.deviceLimit,
-      price: plan.price,
-      status: "ACTIVE"
-    };
-
-    store.push(newSub);
-    return newSub;
-  },
-
-  updateSubscriptionPlan(store, id, newPlanKey) {
-    const sub = this.findSubscriptionById(store, id);
-    if (!sub) {
-      throw new Error(`Không tìm thấy thuê bao [${id}].`);
-    }
-
-    const plan = PLAN_CONFIG[newPlanKey];
-    if (!plan) {
-      throw new Error("Gói cước không hợp lệ.");
-    }
-
-    sub.plan = plan.name;
-    sub.deviceLimit = plan.deviceLimit;
-    sub.price = plan.price;
-    return sub;
-  },
-
-  deleteSubscription(store, id) {
-    const index = store.findIndex(sub => sub.id === id);
-    if (index === -1) {
-      throw new Error(`Không tìm thấy thuê bao [${id}].`);
-    }
-
-    return store.splice(index, 1)[0];
-  }
+const sampleTicket2 = {
+    pnr: "VN502",
+    passengerName: "DO THI BICH",
+    flightNumber: "VN216",
+    ticketClass: "BUSINESS",
+    memberTier: "STANDARD"
 };
 
-// ============================================================================
-// 3. TẦNG ĐIỀU KHIỂN CLI (CONTROLLER/HANDLER LAYER - Quản lý Input/Output)
-// ============================================================================
-const SubscriptionCliHandler = {
-  handleAdd(store, readlineSync) {
-    console.log("\n--- THÊM THUÊ BAO MỚI ---");
-    const customerName = readlineSync.question("Nhập tên khách hàng: ");
-    const plans = ["PERSONAL", "FAMILY"];
-    const planIndex = readlineSync.keyInSelect(plans, "Chọn gói cước:", { cancel: false });
-    const selectedPlan = plans[planIndex];
+const sampleBaggageList2 = [
+    { tagCode: "TAG-004", weight: 25, type: "STANDARD" },
+    { tagCode: "TAG-005", weight: 12, type: "STANDARD" }
+];
 
-    try {
-      const created = SubscriptionService.createSubscription(store, customerName, selectedPlan);
-      console.log(`Thêm thành công thuê bao [${created.id}] cho khách hàng "${created.customerName}".`);
-    } catch (error) {
-      console.error(`Thao tác thất bại: ${error.message}`);
-    }
-  },
-
-  handleList(store) {
-    console.log("\n--- DANH SÁCH THUÊ BAO ---");
-    if (store.length === 0) {
-      console.log("Danh sách trống.");
-      return;
-    }
-    console.table(store);
-  },
-
-  handleUpdate(store, readlineSync) {
-    console.log("\n--- CẬP NHẬT GÓI CƯỚC ---");
-    const targetId = readlineSync.question("Nhập mã thuê bao: ").trim().toUpperCase();
-    const plans = ["PERSONAL", "FAMILY"];
-    const planIndex = readlineSync.keyInSelect(plans, "Chọn gói cước mới:", { cancel: "Hủy" });
-
-    if (planIndex === -1) {
-      console.log("Đã hủy cập nhật.");
-      return;
-    }
-
-    try {
-      const updated = SubscriptionService.updateSubscriptionPlan(store, targetId, plans[planIndex]);
-      console.log(`Cập nhật thành công thuê bao [${updated.id}] sang gói [${updated.plan}].`);
-    } catch (error) {
-      console.error(`Thao tác thất bại: ${error.message}`);
-    }
-  },
-
-  handleDelete(store, readlineSync) {
-    console.log("\n--- HỦY/XÓA THUÊ BAO ---");
-    const targetId = readlineSync.question("Nhập mã thuê bao cần xóa: ").trim().toUpperCase();
-
-    try {
-      const removed = SubscriptionService.deleteSubscription(store, targetId);
-      console.log(`Đã xóa thành công thuê bao [${removed.id}].`);
-    } catch (error) {
-      console.error(`Thao tác thất bại: ${error.message}`);
-    }
-  }
-};
-
-// ============================================================================
-// 4. BÓC TÁCH MENU: SWITCH-CASE CHỈ ĐẢM NHẬN NHIỆM VỤ ĐIỀU HƯỚNG (DISPATCHER)
-// ============================================================================
-function executeMenuChoice(choice, store, readlineSync) {
-  switch (choice) {
-    case 1:
-      SubscriptionCliHandler.handleAdd(store, readlineSync);
-      break;
-    case 2:
-      SubscriptionCliHandler.handleList(store);
-      break;
-    case 3:
-      SubscriptionCliHandler.handleUpdate(store, readlineSync);
-      break;
-    case 4:
-      SubscriptionCliHandler.handleDelete(store, readlineSync);
-      break;
-    case 5:
-      console.log("Thoát chương trình.");
-      break;
-    default:
-      console.log("Lựa chọn không hợp lệ (1-5).");
-      break;
-  }
-}
-
-// ============================================================================
-// 5. MINH CHỨNG KIỂM THỬ ĐỘC LẬP TỪNG HÀM (UNIT TESTS CHO SERVICE LAYER)
-// ============================================================================
-function runUnitTests() {
-  const testStore = [];
-
-  // Test 1: Tạo mới thành công
-  const sub1 = SubscriptionService.createSubscription(testStore, "Test User", "FAMILY");
-  console.assert(testStore.length === 1, "Test 1 Failed: Độ dài mảng không tăng");
-  console.assert(sub1.deviceLimit === 4, "Test 1 Failed: Sai deviceLimit");
-  console.assert(sub1.price === 149000, "Test 1 Failed: Sai giá cước");
-
-  // Test 2: Validation chặn tên rỗng
-  try {
-    SubscriptionService.createSubscription(testStore, "", "PERSONAL");
-    console.assert(false, "Test 2 Failed: Chưa chặn tên rỗng");
-  } catch (err) {
-    console.assert(err.message === "Tên khách hàng không được để trống.", "Test 2 Passed");
-  }
-
-  // Test 3: Cập nhật gói
-  SubscriptionService.updateSubscriptionPlan(testStore, sub1.id, "PERSONAL");
-  console.assert(sub1.plan === "PERSONAL", "Test 3 Failed: Gói cước chưa đổi");
-  console.assert(sub1.deviceLimit === 1, "Test 3 Failed: deviceLimit chưa cập nhật");
-
-  // Test 4: Xóa thành công
-  const deleted = SubscriptionService.deleteSubscription(testStore, sub1.id);
-  console.assert(deleted.id === sub1.id, "Test 4 Failed: Xóa sai ID");
-  console.assert(testStore.length === 0, "Test 4 Failed: Mảng chưa giảm số lượng");
-
-  console.log("-> [UNIT TEST]: Toàn bộ test case của SubscriptionService đã vượt qua!");
-}
-
-runUnitTests();
+processBaggageCheckIn(sampleTicket1, sampleBaggageList1);
+processBaggageCheckIn(sampleTicket2, sampleBaggageList2);
